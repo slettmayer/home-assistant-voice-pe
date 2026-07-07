@@ -1033,6 +1033,19 @@ sensor:
                       id: control_hue
                       increase_hue: false
 
+  # Voice-to-noise ratio metric (0-255) reported by the XMOS DSP.
+  # Useful for judging device placement and comparing microphone processing settings.
+  - platform: template
+    name: "Voice-to-noise ratio"
+    id: vnr_sensor
+    entity_category: diagnostic
+    disabled_by_default: true
+    icon: mdi:microphone-message
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: |-
+      return id(voice_kit_component).read_vnr();
+
 event:
   # Event entity exposed to the user to automate on complex center button presses.
   # The simple press is not exposed as it is used to control the device itself.
@@ -1796,6 +1809,40 @@ select:
           id(hey_jarvis).set_probability_cutoff(212);   // 0.83 -> 1.502 FAPH on DipCo
           id(hey_mycroft).set_probability_cutoff(237);  // 0.93 -> 1.878 FAPH on DipCo
         }
+
+  # Selects the XMOS pipeline tap used for I2S channel 0, the audio Home Assistant sends to speech-to-text.
+  # Each option names the last processing stage applied: AEC -> IC -> NS -> AGC.
+  # The wake word channel (channel 1) is not affected.
+  - platform: template
+    name: "Microphone processing (STT)"
+    id: stt_pipeline_stage
+    optimistic: true
+    initial_option: Fully processed (AGC)
+    restore_value: true
+    entity_category: config
+    icon: mdi:waveform
+    options:
+      - Fully processed (AGC)
+      - Noise suppressed (NS)
+      - Beamformed (IC)
+      - Echo cancelled only (AEC)
+      - Raw (None)
+    on_value:
+      # Keeping the component's channel-0 stage in sync makes its own rewrites
+      # (after XMOS boot or a DFU update) use the selected value as well.
+      lambda: |-
+        voice_kit::PipelineStages stage = voice_kit::PIPELINE_STAGE_AGC;
+        if (x == "Noise suppressed (NS)") {
+          stage = voice_kit::PIPELINE_STAGE_NS;
+        } else if (x == "Beamformed (IC)") {
+          stage = voice_kit::PIPELINE_STAGE_IC;
+        } else if (x == "Echo cancelled only (AEC)") {
+          stage = voice_kit::PIPELINE_STAGE_AEC;
+        } else if (x == "Raw (None)") {
+          stage = voice_kit::PIPELINE_STAGE_NONE;
+        }
+        id(voice_kit_component).set_channel_0_stage(stage);
+        id(voice_kit_component).write_pipeline_stages();
 
 voice_assistant:
   id: va
