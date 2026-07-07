@@ -1041,6 +1041,7 @@ sensor:
     entity_category: diagnostic
     disabled_by_default: true
     icon: mdi:microphone-message
+    state_class: measurement
     accuracy_decimals: 0
     update_interval: 10s
     lambda: |-
